@@ -12,6 +12,9 @@ import (
 	"strings"
 )
 
+// #include <unistd.h>
+import "C"
+
 const (
 	Running = iota
 	Stopped
@@ -236,4 +239,33 @@ func destroyActiveCheckout(c *Container, checkouts string) error {
 	/* All is cleaned up, delete the symlink.  */
 	os.Remove(from)
 	return nil
+}
+
+func RunCommand(container string, command []string) error {
+	checkouts := getCheckoutsDirectory()
+	c, err := ReadContainer(checkouts, container, nil)
+	if err != nil {
+		return err
+	}
+
+	s, err := c.ContainerStatus()
+	if err != nil {
+		return err
+	}
+
+	if s != Running {
+		return fmt.Errorf("%s is not running", container)
+	}
+
+	var args []string
+	if C.isatty(1) != 0 {
+		args = append([]string{"exec", "-t", container}, command...)
+	} else {
+		args = append([]string{"exec", container}, command...)
+	}
+	cmd := exec.Command(c.Runtime, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
 }

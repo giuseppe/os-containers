@@ -19,6 +19,7 @@ func main() {
 		getUninstallCommand(),
 		getUpdateCommand(),
 		getRollbackCommand(),
+		getRunCommand(),
 	}
 	err := app.Run(os.Args)
 	if err != nil {
