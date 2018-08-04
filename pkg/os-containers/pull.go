@@ -68,7 +68,7 @@ func getOSTreeReference(ref reference.Named, repo string) (types.ImageReference,
 	return ostree.NewReference(ref.Name(), repo)
 }
 
-func PullImage(image string) error {
+func PullImage(insecure bool, image string) error {
 	repo := getOSTreeRepo()
 
 	if err := ensureRepoExists(repo); err != nil {
@@ -95,7 +95,12 @@ func PullImage(image string) error {
 		return fmt.Errorf("Invalid destination name %s: %v", image, err)
 	}
 
+	destinationCtx := &types.SystemContext{
+		DockerInsecureSkipTLSVerify: insecure,
+	}
+
 	return copy.Image(context.Background(), policyContext, destRef, srcRef, &copy.Options{
-		ReportWriter: os.Stdout,
+		ReportWriter:   os.Stdout,
+		DestinationCtx: destinationCtx,
 	})
 }

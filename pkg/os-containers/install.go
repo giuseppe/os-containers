@@ -62,7 +62,7 @@ func InstallContainer(name, image string, set map[string]string) error {
 	}
 
 	if !hasBranch {
-		if err := PullImage(image); err != nil {
+		if err := PullImage(false, image); err != nil {
 			return err
 		}
 	}

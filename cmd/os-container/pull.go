@@ -14,6 +14,10 @@ func getPullCommand() cli.Command {
 				Name:  "all",
 				Usage: "show all containers",
 			},
+			cli.BoolFlag{
+				Name:  "insecure",
+				Usage: "allow to pull from an insecure registry",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			return pullImage(c)
@@ -22,5 +26,6 @@ func getPullCommand() cli.Command {
 }
 
 func pullImage(c *cli.Context) error {
-	return oc.PullImage(c.Args().First())
+	insecure := c.Bool("insecure")
+	return oc.PullImage(insecure, c.Args().First())
 }
