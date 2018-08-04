@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/containers/image/docker/reference"
-	"github.com/containers/image/transports/alltransports"
 )
 
 func getDefaultContainerName(ref reference.Named) string {
@@ -32,7 +31,7 @@ func InstallContainer(name, image string, set map[string]string) error {
 		return err
 	}
 
-	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", image))
+	srcRef, err := parseImageName(image)
 	if err != nil {
 		return err
 	}
@@ -142,7 +141,7 @@ func UpdateContainer(name string, set map[string]string, rebase string) error {
 		image = rebase
 	}
 
-	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", image))
+	srcRef, err := parseImageName(image)
 	if err != nil {
 		return err
 	}

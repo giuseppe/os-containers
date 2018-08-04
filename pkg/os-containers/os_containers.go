@@ -11,8 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-
-	"github.com/containers/image/transports/alltransports"
 )
 
 // #include <unistd.h>
@@ -341,7 +339,7 @@ func runCommandInBundle(c *Container, checkouts string, args []string) error {
 }
 
 func runCommandFromImage(image string, command []string, set map[string]string) error {
-	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", image))
+	srcRef, err := parseImageName(image)
 	if err != nil {
 		return err
 	}

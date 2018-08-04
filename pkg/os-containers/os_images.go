@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/containers/image/transports/alltransports"
+	"github.com/containers/image/types"
 )
 
 var layerRegex = regexp.MustCompile(`^[A-Fa-f0-9]{64}$`)
@@ -57,7 +58,7 @@ func getImages(repo *OSTreeRepo, all bool) ([]Image, error) {
 }
 
 func DeleteImage(name string) error {
-	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", name))
+	srcRef, err := parseImageName(name)
 	if err != nil {
 		return err
 	}
@@ -136,4 +137,12 @@ func PruneImages() error {
 	}
 	log.Printf("pruned %v bytes", size)
 	return nil
+}
+
+func parseImageName(image string) (types.ImageReference, error) {
+	srcRef, err := alltransports.ParseImageName(image)
+	if err != nil {
+		return alltransports.ParseImageName(fmt.Sprintf("docker://%s", image))
+	}
+	return srcRef, err
 }
