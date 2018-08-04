@@ -11,6 +11,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // #include <unistd.h>
@@ -61,7 +63,7 @@ func (c *Container) ContainerStatus() (int, error) {
 func (c *Container) WriteToFile(path string) error {
 	b, err := json.Marshal(c)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "cannot create JSON for %s", path)
 	}
 
 	var out bytes.Buffer
@@ -69,12 +71,15 @@ func (c *Container) WriteToFile(path string) error {
 
 	outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0700)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "cannot open %s", path)
 	}
 	defer outFile.Close()
 
 	_, err = out.WriteTo(outFile)
-	return err
+	if err != nil {
+		return errors.Wrapf(err, "cannot write to %s", path)
+	}
+	return nil
 }
 
 func ReadContainer(checkouts string, name string, deployment *int) (*Container, error) {
@@ -89,13 +94,13 @@ func ReadContainer(checkouts string, name string, deployment *int) (*Container, 
 	info, err := ioutil.ReadFile(filepath.Join(checkouts, name, "info"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("cannot find container %s", name)
+			return nil, errors.Wrapf(err, "cannot find container %s", name)
 		}
-		return nil, err
+		return nil, errors.Wrapf(err, "read container %s info file", name)
 	}
 
 	if err := json.Unmarshal(info, &container); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "unmarshal container %s info file", name)
 	}
 	return &container, nil
 }
@@ -116,7 +121,12 @@ func systemctlCommand(cmd string, name string, now bool, quiet bool) ([]byte, er
 		log.Println(fmt.Sprintf("systemctl %s", strings.Join(args, " ")))
 	}
 	c := exec.Command("systemctl", args...)
-	return c.CombinedOutput()
+
+	b, err := c.CombinedOutput()
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot execute systemctl")
+	}
+	return b, nil
 }
 
 func systemdTmpFilesCommand(cmd string, name string, quiet bool) ([]byte, error) {
@@ -132,14 +142,18 @@ func systemdTmpFilesCommand(cmd string, name string, quiet bool) ([]byte, error)
 		log.Println(fmt.Sprintf("systemd-tmpfiles %s", strings.Join(args, " ")))
 	}
 	c := exec.Command("systemd-tmpfiles", args...)
-	return c.CombinedOutput()
+	b, err := c.CombinedOutput()
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot execute systemd-tmpfiles")
+	}
+	return b, nil
 }
 
 func GetContainers(all bool) ([]Container, error) {
 	checkouts := getCheckoutsDirectory()
 	files, err := ioutil.ReadDir(checkouts)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "cannot read checkouts from %s", checkouts)
 	}
 	containers := []Container{}
 	for _, f := range files {
@@ -198,7 +212,7 @@ func deleteCheckouts(name string, checkouts string) error {
 		}
 		i = i + 1
 	}
-	return err
+	return errors.Wrapf(err, "delete checkouts")
 }
 
 func destroyActiveCheckout(c *Container, checkouts string) error {
@@ -232,13 +246,13 @@ func destroyActiveCheckout(c *Container, checkouts string) error {
 		}
 		/* The file was not modified since its installation.  */
 		if newChecksum != oldChecksum {
-			log.Println(fmt.Sprintf("file %s was modified.  Skip.", f))
+			log.Printf("file %s was modified.  Skip.\n", f)
 		} else {
 			err = os.Remove(f)
 			if err != nil {
-				log.Println(fmt.Sprintf("file %s deleted", f))
+				log.Printf("could not delete %s: %v\n", f, err)
 			} else {
-				log.Println(fmt.Sprintf("could not delete %s: %v", err))
+				log.Printf("file %s deleted\n", f)
 			}
 		}
 	}
@@ -293,7 +307,7 @@ func RunCommand(container string, command []string, set map[string]string) error
 func runCommandInBundle(c *Container, checkouts string, args []string) error {
 	bundleDir, err := ioutil.TempDir("", "os-container")
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "create temporary bundle directory")
 	}
 	defer os.RemoveAll(bundleDir)
 
@@ -303,15 +317,15 @@ func runCommandInBundle(c *Container, checkouts string, args []string) error {
 
 	configData, err := ioutil.ReadFile(originConfig)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "read from %s", originConfig)
 	}
 	if err := json.Unmarshal(configData, &config); err != nil {
-		return err
+		return errors.Wrapf(err, "unmarshal JSON %s", originConfig)
 	}
 
 	rootfs, err := filepath.EvalSymlinks(filepath.Join(checkouts, c.Name, "rootfs"))
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "evaluate symlink to rootfs")
 	}
 
 	config["process"].(map[string]interface{})["args"] = args
@@ -320,12 +334,12 @@ func runCommandInBundle(c *Container, checkouts string, args []string) error {
 
 	newConfig, err := json.Marshal(&config)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "marshal JSON")
 	}
 
 	err = ioutil.WriteFile(filepath.Join(bundleDir, "config.json"), newConfig, 0700)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "write config.json")
 	}
 
 	tmpFiles := filepath.Join(checkouts, c.Name, fmt.Sprintf("tmpfiles-%s.conf", c.Name))
@@ -375,7 +389,7 @@ func runCommandFromImage(image string, command []string, set map[string]string) 
 	}
 
 	if err := os.Symlink(filepath.Join(tmpCheckouts, "tmp.0"), filepath.Join(tmpCheckouts, "tmp")); err != nil {
-		return err
+		return errors.Wrapf(err, "create symlink to checkout")
 	}
 
 	if _, err := os.Stat(filepath.Join(tmpCheckouts, "tmp.0", "rootfs/exports/hostfs")); err == nil {

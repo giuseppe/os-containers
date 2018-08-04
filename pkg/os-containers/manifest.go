@@ -17,6 +17,7 @@ import (
 
 	"github.com/mrunalp/fileutils"
 	"github.com/opencontainers/go-digest"
+	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 )
 
@@ -72,14 +73,14 @@ WantedBy=multi-user.target
 func copyFile(src, dest string) error {
 	err := os.MkdirAll(path.Dir(dest), 0755)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "cannot create parent for %s", dest)
 	}
 	return fileutils.CopyFile(src, dest)
 }
 
 func copyFileAndRelabel(ctx *SELinuxCtx, src, dest string) error {
 	if err := copyFile(src, dest); err != nil {
-		return err
+		return errors.Wrapf(err, "cannot copy %s to %s", src, dest)
 	}
 	return ctx.Label(dest)
 }
@@ -98,7 +99,7 @@ func checkConfigHasPidfile(file string) (bool, error) {
 func setSystemdStartup(runtime, srcFile, name string, values map[string]string) error {
 	hasPidFile, err := checkConfigHasPidfile(srcFile)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "check pid file %s", srcFile)
 	}
 	var start, stop, stoppost, prestart string
 	if hasPidFile {
@@ -150,7 +151,6 @@ func amendValues(name, image, imageID string, values map[string]string) error {
 	}
 	if _, found := values["UUID"]; !found {
 		values["UUID"] = uuid.Must(uuid.NewV4()).String()
-
 	}
 
 	values["HOST_UID"] = fmt.Sprintf("%d", os.Geteuid())
@@ -188,15 +188,15 @@ func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set 
 
 	layers, err := getLayers([]byte(manifest))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "read layers")
 	}
 	if err := os.MkdirAll(checkout, 0700); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "create %s", checkout)
 	}
 
 	dir, err := os.Open(checkout)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "open dir %s", checkout)
 	}
 	defer dir.Close()
 
@@ -206,7 +206,7 @@ func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set 
 	for _, l := range layers {
 		err = repo.unionCheckout(l, int(dir.Fd()), checkout)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "checkout %s", l)
 		}
 	}
 
@@ -215,7 +215,7 @@ func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set 
 	if _, err := os.Stat(manifestFile); err == nil {
 		containerManifest, err = ReadContainerManifest(manifestFile)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "read manifest %s", manifestFile)
 		}
 	}
 
@@ -348,7 +348,10 @@ func makeDeploymentActive(container *Container, checkouts string, name string, s
 	destSymlink := filepath.Join(checkouts, name)
 
 	if !container.HasContainerService {
-		return os.Symlink(destDir, destSymlink)
+		if err := os.Symlink(destDir, destSymlink); err != nil {
+			return errors.Wrapf(err, "create checkout symlink")
+		}
+		return nil
 	}
 
 	err := copyFile(destServiceConfig, filepath.Join(getSystemdDestination(), path.Base(destServiceConfig)))
@@ -369,9 +372,8 @@ func makeDeploymentActive(container *Container, checkouts string, name string, s
 		}
 	}
 
-	err = os.Symlink(destDir, destSymlink)
-	if err != nil {
-		return err
+	if err := os.Symlink(destDir, destSymlink); err != nil {
+		return errors.Wrapf(err, "create checkout symlink")
 	}
 
 	_, err = systemctlCommand("daemon-reload", "", false, false)
@@ -420,13 +422,13 @@ type CopiedFiles struct {
 func getFileChecksum(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return "", errors.Wrapf(err, "cannot open %s", path)
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+		return "", errors.Wrapf(err, "cannot compute checksum for %s", path)
 	}
 
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
@@ -442,7 +444,7 @@ func copyFilesToHost(from string, to string, container *Container) (*CopiedFiles
 	}
 	selinuxCtx, err := makeSELinuxCtx()
 	if err != nil {
-		return ret, err
+		return ret, errors.Wrapf(err, "cannot create SELinux context")
 	}
 	defer selinuxCtx.Close()
 
@@ -491,5 +493,4 @@ func copyFilesToHost(from string, to string, container *Container) (*CopiedFiles
 		return nil
 	})
 	return ret, err
-
 }

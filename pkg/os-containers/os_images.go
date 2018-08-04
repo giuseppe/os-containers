@@ -11,6 +11,7 @@ import (
 
 	"github.com/containers/image/transports/alltransports"
 	"github.com/containers/image/types"
+	"github.com/pkg/errors"
 )
 
 var layerRegex = regexp.MustCompile(`^[A-Fa-f0-9]{64}$`)
@@ -73,7 +74,6 @@ func getImages(repo *OSTreeRepo, all bool) ([]Image, error) {
 			if err == nil {
 				sizes[k] = s
 			}
-
 		}
 	}
 
@@ -128,7 +128,7 @@ func DeleteImage(name string) error {
 	repoPath := getOSTreeRepo()
 
 	if _, err := os.Stat(repoPath); err != nil {
-		return err
+		return errors.Wrapf(err, "stat %s", repoPath)
 	}
 	repo, err := openRepo(repoPath)
 	if err != nil {
@@ -144,7 +144,7 @@ func PruneImages() error {
 	repoPath := getOSTreeRepo()
 
 	if _, err := os.Stat(repoPath); err != nil {
-		return err
+		return errors.Wrapf(err, "stat %s", repoPath)
 	}
 	repo, err := openRepo(repoPath)
 	if err != nil {
