@@ -6,6 +6,8 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/containers/image/transports/alltransports"
 	"github.com/containers/image/types"
@@ -18,6 +20,8 @@ type Image struct {
 	OSTreeBranch string
 	OSTreeCommit string
 	Intermediate bool
+	ImageID      string
+	Size         uint64
 }
 
 func GetImages(all bool) ([]Image, error) {
@@ -33,6 +37,25 @@ func GetImages(all bool) ([]Image, error) {
 	return getImages(repo, all)
 }
 
+func computeImageSize(repo *OSTreeRepo, branch string, sizes map[string]uint64) (uint64, error) {
+	found, manifest, err := repo.readMetadata(branch, "docker.manifest")
+	if err != nil {
+		return 0, err
+	}
+	if !found {
+		return 0, nil
+	}
+	layers, err := getLayers([]byte(manifest))
+	if err != nil {
+		return 0, err
+	}
+	var ret uint64
+	for _, l := range layers {
+		ret = ret + sizes[l]
+	}
+	return ret, nil
+}
+
 func getImages(repo *OSTreeRepo, all bool) ([]Image, error) {
 	branches, err := repo.getBranches(ostreePrefix)
 	if err != nil {
@@ -40,16 +63,51 @@ func getImages(repo *OSTreeRepo, all bool) ([]Image, error) {
 	}
 
 	ret := []Image{}
+	sizes := make(map[string]uint64)
+
+	for k, _ := range branches {
+		branch := fmt.Sprintf("%s/%s", ostreePrefix, k)
+		_, size, err := repo.readMetadata(branch, "docker.uncompressed_size")
+		if err == nil {
+			s, err := strconv.ParseUint(size, 10, 64)
+			if err == nil {
+				sizes[k] = s
+			}
+
+		}
+	}
+
 	for k, v := range branches {
 		intermediate := layerRegex.MatchString(k)
 		if !all && intermediate {
 			continue
 		}
+		branch := fmt.Sprintf("%s/%s", ostreePrefix, k)
+
+		found, imageID, err := repo.readMetadata(branch, "docker.digest")
+		if err != nil || !found {
+			imageID = k
+		}
+
+		name := decodeOStreeRef(k)
+
+		var size uint64
+		if intermediate {
+			name = ""
+			size = sizes[k]
+		} else {
+			size, _ = computeImageSize(repo, branch, sizes)
+		}
+
+		imageID = strings.TrimPrefix(imageID, "sha256:")
+
 		i := Image{
-			Name:         decodeOStreeRef(k),
-			OSTreeBranch: fmt.Sprintf("%s/%s", ostreePrefix, k),
+			Name:         name,
+			OSTreeBranch: branch,
 			OSTreeCommit: v,
 			Intermediate: intermediate,
+			ImageID:      imageID,
+			Size:         size,
 		}
 		ret = append(ret, i)
 	}

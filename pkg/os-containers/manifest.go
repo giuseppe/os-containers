@@ -172,7 +172,6 @@ func generateDefaultConfigFile(runtime, destConfig string) error {
 	return cmd.Run()
 }
 
-
 func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set map[string]string, name, image, imageID string, checkoutNumber int) (*Container, error) {
 	runtimePath := getRuntime()
 	found, manifest, err := repo.readMetadata(branch, "docker.manifest")
