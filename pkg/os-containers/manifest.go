@@ -339,11 +339,10 @@ func makeDeploymentActive(container *Container, checkouts string, name string, s
 		}
 		container.InstalledFiles = copiedFiles.Copied
 		container.InstalledFilesChecksum = copiedFiles.Checksum
-		infoFile := filepath.Join(destDir, "info")
-		err = container.WriteToFile(infoFile)
-		if err != nil {
-			return err
-		}
+	}
+	infoFile := filepath.Join(destDir, "info")
+	if err := container.WriteToFile(infoFile); err != nil {
+		return err
 	}
 
 	destSymlink := filepath.Join(checkouts, name)
