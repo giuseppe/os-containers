@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -241,6 +242,10 @@ func destroyActiveCheckout(c *Container, checkouts string) error {
 	return nil
 }
 
+func isStdinTTY() bool {
+	return C.isatty(1) != 0
+}
+
 func RunCommand(container string, command []string) error {
 	checkouts := getCheckoutsDirectory()
 	c, err := ReadContainer(checkouts, container, nil)
@@ -254,16 +259,70 @@ func RunCommand(container string, command []string) error {
 	}
 
 	if s != Running {
+		return runCommandInBundle(c, checkouts, command)
 		return fmt.Errorf("%s is not running", container)
 	}
 
 	var args []string
-	if C.isatty(1) != 0 {
+	if isStdinTTY() {
 		args = append([]string{"exec", "-t", container}, command...)
 	} else {
 		args = append([]string{"exec", container}, command...)
 	}
 	cmd := exec.Command(c.Runtime, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func runCommandInBundle(c *Container, checkouts string, args []string) error {
+	bundleDir, err := ioutil.TempDir("", "os-container")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(bundleDir)
+
+	originConfig := filepath.Join(checkouts, c.Name, "config.json")
+
+	var config map[string]interface{}
+
+	configData, err := ioutil.ReadFile(originConfig)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(configData, &config); err != nil {
+		return err
+	}
+
+	rootfs, err := filepath.EvalSymlinks(filepath.Join(checkouts, c.Name, "rootfs"))
+	if err != nil {
+		return err
+	}
+
+	config["process"].(map[string]interface{})["args"] = args
+	config["process"].(map[string]interface{})["terminal"] = isStdinTTY()
+	config["root"].(map[string]interface{})["path"] = rootfs
+
+	newConfig, err := json.Marshal(&config)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filepath.Join(bundleDir, "config.json"), newConfig, 0700)
+	if err != nil {
+		return err
+	}
+
+	tmpFiles := filepath.Join(checkouts, c.Name, fmt.Sprintf("tmpfiles-%s.conf", c.Name))
+	if _, err := os.Stat(tmpFiles); err == nil {
+		if _, err := systemdTmpFilesCommand("--create", tmpFiles, true); err != nil {
+			return err
+		}
+	}
+
+	cmd := exec.Command(c.Runtime, "run", path.Base(bundleDir))
+	cmd.Dir = bundleDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
