@@ -23,7 +23,6 @@ func getDefaultContainerName(ref reference.Named) string {
 		}
 	}
 	return name
-
 }
 
 func InstallContainer(name, image string, set map[string]string) error {
@@ -33,7 +32,7 @@ func InstallContainer(name, image string, set map[string]string) error {
 		return err
 	}
 
-	srcRef, err := alltransports.ParseImageName(image)
+	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", image))
 	if err != nil {
 		return err
 	}
@@ -143,7 +142,7 @@ func UpdateContainer(name string, set map[string]string, rebase string) error {
 		image = rebase
 	}
 
-	srcRef, err := alltransports.ParseImageName(image)
+	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", image))
 	if err != nil {
 		return err
 	}
