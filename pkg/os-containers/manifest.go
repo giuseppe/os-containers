@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -160,6 +161,18 @@ func amendValues(name, image, imageID string, values map[string]string) error {
 	return nil
 }
 
+func generateDefaultConfigFile(runtime, destConfig string) error {
+	var cmd *exec.Cmd
+	if os.Geteuid() == 0 {
+		cmd = exec.Command(runtime, "spec")
+	} else {
+		cmd = exec.Command(runtime, "spec", "--rootless")
+	}
+	cmd.Dir = path.Dir(destConfig)
+	return cmd.Run()
+}
+
+
 func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set map[string]string, name, image, imageID string, checkoutNumber int) (*Container, error) {
 	runtimePath := getRuntime()
 	found, manifest, err := repo.readMetadata(branch, "docker.manifest")
@@ -253,9 +266,16 @@ func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set 
 		containerManifest.RenameFiles = newRenameFiles
 	}
 
-	err = TemplateWithDefaultGenerate(srcConfig, destConfig, "", values)
-	if err != nil {
-		return nil, err
+	if _, err := os.Stat(srcConfig); err != nil && os.IsNotExist(err) {
+		err = generateDefaultConfigFile(runtimePath, destConfig)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err = TemplateWithDefaultGenerate(srcConfig, destConfig, "", values)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err = TemplateWithDefaultGenerate(srcServiceConfig, destServiceConfig, defaultService, values)

@@ -57,7 +57,7 @@ func getImages(repo *OSTreeRepo, all bool) ([]Image, error) {
 }
 
 func DeleteImage(name string) error {
-	srcRef, err := alltransports.ParseImageName(name)
+	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", name))
 	if err != nil {
 		return err
 	}

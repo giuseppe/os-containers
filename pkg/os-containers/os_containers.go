@@ -11,6 +11,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/containers/image/transports/alltransports"
 )
 
 // #include <unistd.h>
@@ -246,8 +248,17 @@ func isStdinTTY() bool {
 	return C.isatty(1) != 0
 }
 
-func RunCommand(container string, command []string) error {
+func RunCommand(container string, command []string, set map[string]string) error {
 	checkouts := getCheckoutsDirectory()
+
+	if _, err := os.Stat(filepath.Join(checkouts, container)); err != nil && os.IsNotExist(err) {
+		return runCommandFromImage(container, command, set)
+	}
+
+	if len(set) > 0 {
+		return fmt.Errorf("cannot set values for an existing container")
+	}
+
 	c, err := ReadContainer(checkouts, container, nil)
 	if err != nil {
 		return err
@@ -327,4 +338,46 @@ func runCommandInBundle(c *Container, checkouts string, args []string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
+}
+
+func runCommandFromImage(image string, command []string, set map[string]string) error {
+	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", image))
+	if err != nil {
+		return err
+	}
+	dockerRef := srcRef.DockerReference()
+	branch := fmt.Sprintf("%s/%s", ostreePrefix, encodeOStreeRef(dockerRef.String()))
+
+	tmpCheckouts, err := ioutil.TempDir(filepath.Join(getOSTreeRepo(), "tmp"), "os-container")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpCheckouts)
+
+	repoPath := getOSTreeRepo()
+
+	repo, err := openRepo(repoPath)
+	if err != nil {
+		return err
+	}
+
+	_, imageID, err := repo.readMetadata(branch, "docker.digest")
+	if err != nil {
+		return err
+	}
+
+	ctr, err := checkoutContainerTo(branch, repo, tmpCheckouts, set, "tmp", image, imageID, 0)
+	if err != nil {
+		return err
+	}
+
+	if err := os.Symlink(filepath.Join(tmpCheckouts, "tmp.0"), filepath.Join(tmpCheckouts, "tmp")); err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(filepath.Join(tmpCheckouts, "tmp.0", "rootfs/exports/hostfs")); err == nil {
+		return fmt.Errorf("the image %s cannot be used without a container as it exports files to the host", image)
+	}
+
+	return runCommandInBundle(ctr, tmpCheckouts, command)
 }
