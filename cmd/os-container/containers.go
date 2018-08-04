@@ -43,7 +43,7 @@ func listContainers(all bool) error {
 	if err != nil {
 		return err
 	}
-	fmtString := "%-10s %-20s %-20s %-10s %-15s\n"
+	fmtString := "%-10s %-40s %-20s %-10s %-15s\n"
 	fmt.Printf(fmtString, "NAME", "IMAGE", "CREATED", "STATE", "RUNTIME")
 	for _, c := range containers {
 		status, err := c.ContainerStatus()
