@@ -163,11 +163,16 @@ func getCheckoutsDirectory() string {
 	if os.Geteuid() == 0 {
 		return "/var/lib/containers/atomic"
 	} else {
-		xdgDataDir := os.Getenv("XDG_DATA_DIR")
-		if xdgDataDir != "" {
-			return filepath.Join(xdgDataDir, "containers/atomic")
+		dataDir := os.Getenv("XDG_DATA_HOME")
+		if dataDir == "" {
+			home := os.Getenv("HOME")
+			resolvedHome, err := filepath.EvalSymlinks(home)
+			if err == nil {
+				home = resolvedHome
+			}
+			dataDir = filepath.Join(home, ".local", "share")
 		}
-		return filepath.Join(os.Getenv("HOME"), ".containers/atomic")
+		return filepath.Join(dataDir, "containers/atomic")
 	}
 }
 

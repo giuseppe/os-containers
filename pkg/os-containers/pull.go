@@ -19,9 +19,14 @@ import (
 
 func getStoragePath() string {
 	if os.Geteuid() != 0 {
-		dataDir := os.Getenv("XDG_DATA_DIR")
+		dataDir := os.Getenv("XDG_DATA_HOME")
 		if dataDir == "" {
-			dataDir = os.Getenv("HOME")
+			home := os.Getenv("HOME")
+			resolvedHome, err := filepath.EvalSymlinks(home)
+			if err == nil {
+				home = resolvedHome
+			}
+			dataDir = filepath.Join(home, ".local", "share")
 		}
 		return filepath.Join(dataDir, "containers/atomic/.storage")
 	}
