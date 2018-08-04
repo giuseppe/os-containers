@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"runtime"
 )
 
 var layerRegex = regexp.MustCompile(`^[A-Fa-f0-9]{64}$`)
@@ -69,6 +70,9 @@ func DeleteImage(name string) error {
 }
 
 func PruneImages() error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	repoPath := getOSTreeRepo()
 
 	if _, err := os.Stat(repoPath); err != nil {
@@ -117,5 +121,10 @@ func PruneImages() error {
 			}
 		}
 	}
+	size, err := repo.prune()
+	if err != nil {
+		return err
+	}
+	log.Printf("pruned %v bytes", size)
 	return nil
 }

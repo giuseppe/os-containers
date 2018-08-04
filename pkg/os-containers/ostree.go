@@ -212,3 +212,15 @@ func (repo *OSTreeRepo) deleteBranch(branch string) error {
 	}
 	return nil
 }
+
+func (repo *OSTreeRepo) prune() (uint64, error) {
+	var cerr *C.GError
+
+	var obj, objPruned C.gint
+	var size C.guint64
+
+	if !glib.GoBool(glib.GBoolean(C.ostree_repo_prune(repo.repo, C.OSTREE_REPO_PRUNE_FLAGS_REFS_ONLY, -1, &obj, &objPruned, &size, nil, &cerr))) {
+		return 0, glib.ConvertGError(glib.ToGError(unsafe.Pointer(cerr)))
+	}
+	return uint64(size), nil
+}
