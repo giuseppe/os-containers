@@ -204,3 +204,35 @@ func parseImageName(image string) (types.ImageReference, error) {
 	}
 	return srcRef, err
 }
+
+func TagImage(src, dest string) error {
+	srcRef, err := parseImageName(src)
+	if err != nil {
+		return err
+	}
+	dockerRef := srcRef.DockerReference()
+	srcBranch := fmt.Sprintf("%s/%s", ostreePrefix, encodeOStreeRef(dockerRef.String()))
+
+	destRef, err := parseImageName(dest)
+	if err != nil {
+		return err
+	}
+	dockerRef = destRef.DockerReference()
+	destBranch := fmt.Sprintf("%s/%s", ostreePrefix, encodeOStreeRef(dockerRef.String()))
+
+	repoPath := getOSTreeRepo()
+	if _, err := os.Stat(repoPath); err != nil {
+		return errors.Wrapf(err, "stat %s", repoPath)
+	}
+	repo, err := openRepo(repoPath)
+	if err != nil {
+		return err
+	}
+
+	commit, err := repo.resolveCommit(srcBranch)
+	if err != nil {
+		return err
+	}
+
+	return repo.setBranch(destBranch, commit)
+}

@@ -102,6 +102,44 @@ func (repo *OSTreeRepo) hasBranch(commit string) (bool, error) {
 	return ref != nil, nil
 }
 
+func (repo *OSTreeRepo) resolveCommit(branch string) (string, error) {
+	var cerr *C.GError
+	var ref *C.char
+	defer C.free(unsafe.Pointer(ref))
+
+	cBranch := C.CString(branch)
+	defer C.free(unsafe.Pointer(cBranch))
+
+	if !glib.GoBool(glib.GBoolean(C.ostree_repo_resolve_rev(repo.repo, cBranch, C.gboolean(1), &ref, &cerr))) {
+		return "", glib.ConvertGError(glib.ToGError(unsafe.Pointer(cerr)))
+	}
+	return C.GoString(ref), nil
+}
+
+func (repo *OSTreeRepo) setBranch(branch, commit string) error {
+	var cerr *C.GError
+
+	var remote *C.char
+	var ref *C.char
+
+	cBranch := C.CString(branch)
+	defer C.free(unsafe.Pointer(cBranch))
+
+	if !glib.GoBool(glib.GBoolean(C.ostree_parse_refspec(cBranch, &remote, &ref, &cerr))) {
+		return glib.ConvertGError(glib.ToGError(unsafe.Pointer(cerr)))
+	}
+	defer C.free(unsafe.Pointer(remote))
+	defer C.free(unsafe.Pointer(ref))
+
+	cCommit := C.CString(commit)
+	defer C.free(unsafe.Pointer(cCommit))
+
+	if !glib.GoBool(glib.GBoolean(C.ostree_repo_set_ref_immediate(repo.repo, remote, ref, cCommit, nil, &cerr))) {
+		return glib.ConvertGError(glib.ToGError(unsafe.Pointer(cerr)))
+	}
+	return nil
+}
+
 func (repo *OSTreeRepo) readMetadata(commit, key string) (bool, string, error) {
 	var cerr *C.GError
 	var ref *C.char

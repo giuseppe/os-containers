@@ -37,6 +37,13 @@ func getImagesCommand() cli.Command {
 				},
 			},
 			{
+				Name:  "tag",
+				Usage: "tag an image",
+				Action: func(c *cli.Context) error {
+					return tagImage(c)
+				},
+			},
+			{
 				Name:  "prune",
 				Usage: "prune unused images",
 				Action: func(c *cli.Context) error {
@@ -87,4 +94,10 @@ func deleteImage(c *cli.Context) error {
 
 func pruneImages() error {
 	return oc.PruneImages()
+}
+
+func tagImage(c *cli.Context) error {
+	src := c.Args().Get(0)
+	dest := c.Args().Get(1)
+	return oc.TagImage(src, dest)
 }
