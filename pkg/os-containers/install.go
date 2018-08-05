@@ -24,7 +24,7 @@ func getDefaultContainerName(ref reference.Named) string {
 	return name
 }
 
-func InstallContainer(name, image string, set map[string]string) error {
+func InstallContainer(name, image string, set map[string]string, ctx *Context) error {
 	repoPath := getOSTreeRepo()
 
 	if _, err := os.Stat(repoPath); err != nil {
@@ -73,7 +73,7 @@ func InstallContainer(name, image string, set map[string]string) error {
 
 	imageID = strings.TrimPrefix(imageID, "sha256:")
 
-	container, err := checkoutContainerTo(branch, repo, checkouts, set, name, image, imageID, 0)
+	container, err := checkoutContainerTo(branch, repo, checkouts, set, name, image, imageID, 0, ctx)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func getCurrentRevision(checkout string) (int, error) {
 	return strconv.Atoi(target[ind+1:])
 }
 
-func UpdateContainer(name string, set map[string]string, rebase string) error {
+func UpdateContainer(name string, set map[string]string, rebase string, ctx *Context) error {
 	repoPath := getOSTreeRepo()
 
 	checkouts := getCheckoutsDirectory()
@@ -176,7 +176,7 @@ func UpdateContainer(name string, set map[string]string, rebase string) error {
 	for k, v := range set {
 		mergedSet[k] = v
 	}
-	newDeployment, err := checkoutContainerTo(branch, repo, checkouts, mergedSet, name, image, imageID, nextRevision)
+	newDeployment, err := checkoutContainerTo(branch, repo, checkouts, mergedSet, name, image, imageID, nextRevision, ctx)
 	if err != nil {
 		return err
 	}

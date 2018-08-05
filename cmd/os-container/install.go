@@ -40,5 +40,6 @@ func installContainer(c *cli.Context) error {
 	}
 	name := c.String("name")
 	image := c.Args().First()
-	return oc.InstallContainer(name, image, set)
+	ctx := readContext(c)
+	return oc.InstallContainer(name, image, set, ctx)
 }

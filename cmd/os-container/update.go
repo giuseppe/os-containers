@@ -41,5 +41,6 @@ func updateContainer(c *cli.Context) error {
 	rebase := c.String("rebase")
 
 	name := c.Args().First()
-	return oc.UpdateContainer(name, set, rebase)
+	ctx := readContext(c)
+	return oc.UpdateContainer(name, set, rebase, ctx)
 }

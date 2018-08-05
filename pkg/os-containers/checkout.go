@@ -172,8 +172,8 @@ func generateDefaultConfigFile(runtime, destConfig string) error {
 	return cmd.Run()
 }
 
-func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set map[string]string, name, image, imageID string, checkoutNumber int) (*Container, error) {
-	runtimePath := getRuntime()
+func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set map[string]string, name, image, imageID string, checkoutNumber int, ctx *Context) (*Container, error) {
+	runtimePath := getRuntime(ctx)
 	found, manifest, err := repo.readMetadata(branch, "docker.manifest")
 	if err != nil {
 		return nil, err
@@ -268,7 +268,7 @@ func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set 
 	if _, err := os.Stat(srcConfig); err != nil && os.IsNotExist(err) {
 		err = generateDefaultConfigFile(runtimePath, destConfig)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "cannot generate default config file")
 		}
 	} else {
 		err = TemplateWithDefaultGenerate(srcConfig, destConfig, "", values)

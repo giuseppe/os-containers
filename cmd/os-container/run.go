@@ -36,5 +36,6 @@ func runCommand(c *cli.Context) error {
 	}
 	container := c.Args().First()
 	cmd := []string(c.Args())[1:]
-	return oc.RunCommand(container, cmd, set)
+	ctx := readContext(c)
+	return oc.RunCommand(container, cmd, set, ctx)
 }

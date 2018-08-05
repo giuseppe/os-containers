@@ -24,6 +24,10 @@ const (
 	Failed
 )
 
+type Context struct {
+	Runtime string
+}
+
 type Container struct {
 	Name                   string                 `json:"-"`
 	OstreeCommit           string                 `json:"ostree-commit"`
@@ -190,7 +194,10 @@ func getCheckoutsDirectory() string {
 	}
 }
 
-func getRuntime() string {
+func getRuntime(ctx *Context) string {
+	if ctx != nil && ctx.Runtime != "" {
+		return ctx.Runtime
+	}
 	runtime := os.Getenv("RUNTIME")
 	if runtime != "" {
 		return runtime
@@ -265,11 +272,11 @@ func isStdinTTY() bool {
 	return C.isatty(1) != 0
 }
 
-func RunCommand(container string, command []string, set map[string]string) error {
+func RunCommand(container string, command []string, set map[string]string, ctx *Context) error {
 	checkouts := getCheckoutsDirectory()
 
 	if _, err := os.Stat(filepath.Join(checkouts, container)); err != nil && os.IsNotExist(err) {
-		return runCommandFromImage(container, command, set)
+		return runCommandFromImage(container, command, set, ctx)
 	}
 
 	if len(set) > 0 {
@@ -357,7 +364,7 @@ func runCommandInBundle(c *Container, checkouts string, args []string) error {
 	return cmd.Run()
 }
 
-func runCommandFromImage(image string, command []string, set map[string]string) error {
+func runCommandFromImage(image string, command []string, set map[string]string, ctx *Context) error {
 	srcRef, err := parseImageName(image)
 	if err != nil {
 		return err
@@ -383,7 +390,7 @@ func runCommandFromImage(image string, command []string, set map[string]string) 
 		return err
 	}
 
-	ctr, err := checkoutContainerTo(branch, repo, tmpCheckouts, set, "tmp", image, imageID, 0)
+	ctr, err := checkoutContainerTo(branch, repo, tmpCheckouts, set, "tmp", image, imageID, 0, ctx)
 	if err != nil {
 		return err
 	}
