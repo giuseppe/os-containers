@@ -66,7 +66,10 @@ func ensureRepoExists(repoLocation string) error {
 }
 
 func getOSTreeReference(ref reference.Named, repo string) (types.ImageReference, error) {
-	if tagged, ok := ref.(reference.Tagged); ok {
+	if digested, ok := ref.(reference.Digested); ok {
+		n := fmt.Sprintf("%s@%s", ref.Name(), digested.Digest())
+		return ostree.NewReference(n, repo)
+	} else if tagged, ok := ref.(reference.Tagged); ok {
 		n := fmt.Sprintf("%s:%s", ref.Name(), tagged.Tag())
 		return ostree.NewReference(n, repo)
 	}
