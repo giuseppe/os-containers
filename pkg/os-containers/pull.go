@@ -9,6 +9,7 @@ import (
 
 	"github.com/containers/image/copy"
 	"github.com/containers/image/docker/reference"
+	"github.com/containers/image/docker/tarfile"
 	"github.com/containers/image/ostree"
 	"github.com/containers/image/signature"
 	"github.com/containers/image/transports/alltransports"
@@ -65,7 +66,25 @@ func ensureRepoExists(repoLocation string) error {
 	return nil
 }
 
-func getOSTreeReference(ref reference.Named, repo string) (types.ImageReference, error) {
+func getOSTreeReference(image types.ImageReference, repo string) (types.ImageReference, error) {
+	ref := image.DockerReference()
+	if ref == nil {
+		src, err := tarfile.NewSourceFromFile(image.StringWithinTransport())
+		if err == nil {
+			defer src.Close()
+			manifest, err := src.LoadTarManifest()
+			if err != nil {
+				return nil, err
+			}
+			for _, i := range(manifest) {
+				if i.RepoTags != nil {
+					return ostree.NewReference(i.RepoTags[0], repo)
+				}
+			}
+		}
+
+	}
+
 	if digested, ok := ref.(reference.Digested); ok {
 		n := fmt.Sprintf("%s@%s", ref.Name(), digested.Digest())
 		return ostree.NewReference(n, repo)
@@ -97,8 +116,7 @@ func PullImage(insecure bool, image string) error {
 	if err != nil {
 		return fmt.Errorf("Invalid source name %s: %v", image, err)
 	}
-
-	destRef, err := getOSTreeReference(srcRef.DockerReference(), repo)
+	destRef, err := getOSTreeReference(srcRef, repo)
 	if err != nil {
 		return fmt.Errorf("Invalid destination name %s: %v", image, err)
 	}
