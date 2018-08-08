@@ -277,6 +277,12 @@ func checkoutContainerTo(branch string, repo *OSTreeRepo, checkouts string, set 
 		}
 	}
 
+	if os.Geteuid() != 0 {
+		err := makeOCIConfigurationRootless(destConfig); if err != nil {
+			return nil, err
+		}
+	}
+
 	err = TemplateWithDefaultGenerate(srcServiceConfig, destServiceConfig, defaultService, values)
 	if err != nil {
 		return nil, err
